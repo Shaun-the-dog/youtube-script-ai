@@ -1,0 +1,5 @@
+anthropic>=0.50
+PyYAML>=6.0
+python-dotenv>=1.0
+openpyxl>=3.1
+streamlit>=1.40

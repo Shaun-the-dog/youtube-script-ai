@@ -24,7 +24,7 @@ cp .env.example .env   # .env を開いて ANTHROPIC_API_KEY を貼る
 ## 使い方A：画面（先生が直接触る・おすすめ）
 
 ```bash
-streamlit run app.py
+streamlit run streamlit_app.py
 ```
 
 ブラウザが開き、「企画を3つ生成 → 1つ選ぶ → 台本(Excel)を生成・ダウンロード」を

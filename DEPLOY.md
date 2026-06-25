@@ -43,7 +43,7 @@ gh repo create youtube-script-ai --private --source=. --push
 2. 「**Create app**」→「Deploy a public app from GitHub」… ではなく **自分のリポジトリ**を選ぶ
    - Repository: `あなたのID/youtube-script-ai`
    - Branch: `main`
-   - **Main file path: `app.py`**
+   - **Main file path: `streamlit_app.py`**
 3. 「**Advanced settings**」を開く
    - **Python version: 3.12**（3.14はまだ非対応のため）
    - **Secrets** に次を貼り付け（ここがキーの保管場所）：

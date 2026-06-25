@@ -6,7 +6,7 @@ Streamlit 製のシンプルなWeb画面。
 3) Excelをその場でダウンロード。コンプラ点検の結果も表示。
 
 起動:
-    streamlit run app.py
+    streamlit run streamlit_app.py
 """
 
 from __future__ import annotations

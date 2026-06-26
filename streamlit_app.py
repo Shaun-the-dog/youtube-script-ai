@@ -154,9 +154,11 @@ if ideas:
     st.markdown(f"**内容サマリ**：{idea.get('summary', '-')}")
     st.markdown(f"**🆕 新しい切り口**：{idea.get('fresh_angle', '-')}")
 
+    # idx をキーに含めることで、候補を選び直すとテーマ欄も切り替わる
     chosen_theme = st.text_input(
-        "テーマ（必要ならここで微調整できます）", value=idea["title"]
+        "テーマ（必要ならここで微調整できます）", value=idea["title"], key=f"theme_{idx}"
     )
+    st.caption("💡 3案は消えません。台本が微妙なら、上で別の案を選び直して、もう一度「台本を生成する」を押せば作り直せます。")
 
 
 # ============================================================

@@ -62,13 +62,29 @@ def record(cfg: dict, model: str, usage, kind: str) -> float:
         "jpy": round(jpy, 2),
         "detail": detail,
     }
-    LOG_PATH.parent.mkdir(exist_ok=True)
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    # まずスプレッドシートへ（再起動で消えない）。設定が無ければローカルJSONLへ。
+    try:
+        from . import sheets
+    except ImportError:
+        import sheets  # type: ignore
+
+    if not sheets.append(entry):
+        LOG_PATH.parent.mkdir(exist_ok=True)
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return jpy
 
 
 def _load() -> list[dict]:
+    # スプレッドシートが使えればそちらを正とする。
+    try:
+        from . import sheets
+    except ImportError:
+        import sheets  # type: ignore
+    rows = sheets.load()
+    if rows is not None:
+        return rows
+
     if not LOG_PATH.exists():
         return []
     out = []

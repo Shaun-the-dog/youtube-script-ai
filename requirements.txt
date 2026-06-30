@@ -3,3 +3,5 @@ PyYAML>=6.0
 python-dotenv>=1.0
 openpyxl>=3.1
 streamlit>=1.40
+gspread>=6.0
+google-auth>=2.30

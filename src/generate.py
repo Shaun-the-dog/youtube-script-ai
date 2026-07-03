@@ -206,11 +206,24 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
     )
     exclude = exclude or []
     exclude_block = (
-        "【今回は出さない（すでに画面に表示済みの案。これらと重複させず、必ず別の切り口・別のテーマにする）】\n"
+        "【すでに出した案（重要）】\n"
+        "これらは提示済み。タイトルを言い換えただけの案もNG。"
+        "同じテーマ・同じ制度・同じ悩みが主役の案は出さず、まったく別の領域から発想する：\n"
         + "\n".join(f"- {t}" for t in exclude)
         + "\n"
         if exclude else ""
     )
+    # 多様性プールから毎回ランダムに数個を選び、「今回優先して広げる領域」として渡す
+    angles = cfg.get("diversity_angles", []) or []
+    if angles:
+        picked = random.sample(angles, min(4, len(angles)))
+        angle_block = (
+            "【今回は特にこの領域から優先して発想を広げる（毎回変わる。ここに寄せて案を作る）】\n"
+            + "\n".join(f"- {a}" for a in picked)
+            + "\n"
+        )
+    else:
+        angle_block = ""
     web_instruction = (
         "0. まずWeb検索で、最近SNS（X等）やニュースで話題になっている借金・債務整理・お金まわりの\n"
         "   トピック（例：「破産者マップ」など）を調べ、企画の新しい切り口として活かす。\n"
@@ -218,7 +231,7 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
     )
     system = channel_context(cfg) + "\n" + clickability_block(cfg) + "\n" + compliance_block(cfg)
     user = (
-        f"このチャンネルの次回以降の企画案を{count}本出してください。\n\n"
+        f"このチャンネルの次回以降の企画案を{count + 2}本出してください（多めに出す。互いにテーマを散らす）。\n\n"
         "手順:\n"
         f"{web_instruction}"
         "1. 下の『伸びている動画タイトル』を分析し、共通する“クリックされる型”を見抜く。\n"
@@ -231,12 +244,13 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
         "- 本編で視聴者が持ち帰れる価値（行動・損得・判断基準など）を必ず用意する。\n"
         "- 過去テーマと切り口・結論が丸かぶりしないこと。各案の fresh_angle に“何が新しいか”を必ず書く。\n\n"
         f"{avoid_block}\n"
+        f"{angle_block}\n"
         f"{exclude_block}\n"
         f"{reference_block}\n\n"
         f"{history_block}\n\n"
         f"（多様性シード:{random.randint(1000, 9999)}。このシードは毎回変わる。"
-        f"前回と同じ発想に固執せず、視聴者層・切り口・お金の悩みの種類を変えて、"
-        f"毎回できるだけ違う{count}案を出すこと。）"
+        f"前回と同じ発想に固執せず、上の『今回優先して広げる領域』に寄せて、"
+        f"毎回できるだけ違う{count}案を出すこと。3案どうしもテーマを散らす。）"
     )
     params = dict(
         model=model_for(cfg, "ideate"),
@@ -251,7 +265,17 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
         params["tools"] = [WEB_SEARCH_TOOL]
     msg = client().messages.create(**params)
     usage.record(cfg, params["model"], msg.usage, "ideate")
-    return extract_json(msg)["ideas"]
+    raw = extract_json(msg)["ideas"]
+    # バッチ内の重複と既出タイトルを除去し、count件に整える
+    seen_keys = {t.strip().lower() for t in exclude}
+    uniq = []
+    for d in raw:
+        key = str(d.get("title", "")).strip().lower()
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        uniq.append(d)
+    return uniq[:count]
 
 
 def print_ideas(ideas: list[dict]) -> None:

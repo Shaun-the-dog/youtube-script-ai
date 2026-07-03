@@ -29,6 +29,7 @@ cfg = g.load_config()
 # --- セッション状態の初期化 ---
 for key in ("ideas", "result"):
     st.session_state.setdefault(key, None)
+st.session_state.setdefault("seen_titles", [])  # これまで出した案（重複回避用）
 
 
 # --- APIキー ---
@@ -124,7 +125,9 @@ with col1:
         with st.spinner("企画を考えています…" + ("（検索ありで1〜2分）" if use_web else "（15〜20秒ほど）")):
             t0 = usage.now_iso()
             try:
-                st.session_state.ideas = g.ideate(cfg, 3, use_web=use_web)
+                new = g.ideate(cfg, 3, use_web=use_web, exclude=st.session_state.seen_titles)
+                st.session_state.ideas = new
+                st.session_state.seen_titles += [d["title"] for d in new]
                 st.session_state.result = None
                 st.toast(f"今回の企画生成：今月の枠の約 {pct_of_budget(usage.since_total_jpy(t0)):.1f}%")
             except Exception as e:  # noqa: BLE001
@@ -134,7 +137,9 @@ with col2:
         with st.spinner("別案を考えています…"):
             t0 = usage.now_iso()
             try:
-                st.session_state.ideas = g.ideate(cfg, 3, use_web=use_web)
+                new = g.ideate(cfg, 3, use_web=use_web, exclude=st.session_state.seen_titles)
+                st.session_state.ideas = new
+                st.session_state.seen_titles += [d["title"] for d in new]
                 st.session_state.result = None
                 st.toast(f"今回の企画生成：今月の枠の約 {pct_of_budget(usage.since_total_jpy(t0)):.1f}%")
             except Exception as e:  # noqa: BLE001

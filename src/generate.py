@@ -182,7 +182,9 @@ IDEA_SCHEMA = {
 }
 
 
-def ideate(cfg: dict, count: int, use_web: bool = True) -> list[dict]:
+def ideate(cfg: dict, count: int, use_web: bool = True,
+           exclude: list[str] | None = None) -> list[dict]:
+    import random
     history = load_history()
     history_block = (
         "【過去に扱ったテーマ（切り口・結論の丸かぶりを避ける）】\n"
@@ -201,6 +203,13 @@ def ideate(cfg: dict, count: int, use_web: bool = True) -> list[dict]:
         + "\n".join(f"- {a['topic']}（理由：{a['reason']}）" for a in avoid)
         + "\n"
         if avoid else ""
+    )
+    exclude = exclude or []
+    exclude_block = (
+        "【今回は出さない（すでに画面に表示済みの案。これらと重複させず、必ず別の切り口・別のテーマにする）】\n"
+        + "\n".join(f"- {t}" for t in exclude)
+        + "\n"
+        if exclude else ""
     )
     web_instruction = (
         "0. まずWeb検索で、最近SNS（X等）やニュースで話題になっている借金・債務整理・お金まわりの\n"
@@ -222,13 +231,18 @@ def ideate(cfg: dict, count: int, use_web: bool = True) -> list[dict]:
         "- 本編で視聴者が持ち帰れる価値（行動・損得・判断基準など）を必ず用意する。\n"
         "- 過去テーマと切り口・結論が丸かぶりしないこと。各案の fresh_angle に“何が新しいか”を必ず書く。\n\n"
         f"{avoid_block}\n"
+        f"{exclude_block}\n"
         f"{reference_block}\n\n"
-        f"{history_block}"
+        f"{history_block}\n\n"
+        f"（多様性シード:{random.randint(1000, 9999)}。このシードは毎回変わる。"
+        f"前回と同じ発想に固執せず、視聴者層・切り口・お金の悩みの種類を変えて、"
+        f"毎回できるだけ違う{count}案を出すこと。）"
     )
     params = dict(
         model=model_for(cfg, "ideate"),
         max_tokens=4000,
         system=system,
+        temperature=1.0,  # 出し直すたびに案が変わるよう多様性を最大化
         thinking={"type": "disabled"},  # 企画出しは速度優先（深い思考は不要）
         output_config={"format": {"type": "json_schema", "schema": IDEA_SCHEMA}},
         messages=[{"role": "user", "content": user}],

@@ -54,6 +54,38 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
+KNOWLEDGE_PATH = ROOT / "config" / "knowledge.yaml"
+
+
+def load_knowledge() -> list[dict]:
+    """杉山先生の実務ナレッジ（テーマ別）。無ければ空。"""
+    if not KNOWLEDGE_PATH.exists():
+        return []
+    with open(KNOWLEDGE_PATH, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    return data.get("knowledge", []) or []
+
+
+def select_knowledge(theme: str) -> str:
+    """テーマに関係する実務ナレッジだけを選び、プロンプト用ブロックにする。"""
+    theme = theme or ""
+    picked = []
+    for entry in load_knowledge():
+        kws = entry.get("keywords", []) or []
+        if any(kw and kw in theme for kw in kws):
+            picked.append(entry)
+    if not picked:
+        return ""
+    lines = [
+        "【杉山先生の実務ナレッジ（このテーマに関係する“調べても出にくい”勘所）】",
+        "※すべて実務上の“目安”。台本では断定せず「目安として」等を添える。ここに無い数字を捏造しない。",
+    ]
+    for e in picked:
+        lines.append(f"■ {e.get('topic', '')}")
+        lines += [f"- {p}" for p in e.get("points", [])]
+    return "\n".join(lines) + "\n"
+
+
 def _read_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -446,11 +478,20 @@ def generate_parts(cfg: dict, theme: str, use_web: bool = True) -> dict:
         cite_instruction = (
             "【出典】今回はネット検索を使わないため、references はすべて空配列にする（URLを推測で書かない）。\n"
         )
+    knowledge_block = select_knowledge(theme)
+    knowledge_instruction = (
+        f"{knowledge_block}\n"
+        "↑この実務ナレッジを本編に自然に織り込み、"
+        "『ネットで調べれば出る一般論』を超える具体（相場・目安・落とし穴・実務判断）を必ず盛り込むこと。"
+        "ただし目安は断定せず、ここに無い数字は作らない。\n\n"
+        if knowledge_block else ""
+    )
     user = (
         f"次のテーマで、台本のテーマ固有部分を作ってください。\n"
         f"テーマ: 「{theme}」\n\n"
         "制度説明だけに終わらせず、視聴者が持ち帰れる価値（具体的な行動・損得・不安の解消・判断の基準）を必ず入れてください。\n"
         "怖いテーマでも最後は安心と次の一歩へ。債務者を絶対に貶めないでください。\n\n"
+        f"{knowledge_instruction}"
         f"{cite_instruction}\n"
         f"{history_block}"
     )

@@ -390,10 +390,19 @@ def script_system(cfg: dict) -> str:
     spec = cfg["script_spec"]
     voice = cfg["voice"]
     style = "\n".join(f"- {s}" for s in voice["style"])
+    guide = cfg.get("style_guide", []) or []
+    guide_block = (
+        "\n【杉山先生の型（過去台本191本＋作成マニュアルから抽出。できる範囲で従う）】\n"
+        + "\n".join(f"- {g}" for g in guide)
+        + "\n"
+        if guide else ""
+    )
     return (
         channel_context(cfg)
         + "\n【語り口】\n"
-        + f"トーン: {voice['tone']}\n{style}\n\n"
+        + f"トーン: {voice['tone']}\n{style}\n"
+        + guide_block
+        + "\n"
         + "【台本の作り方】\n"
         + f"- 1行=1ナレーション（声に出して自然な一息）。1行は{spec['line_max_chars']}字以内を目安に短く区切る。\n"
         + f"- これは杉山先生が加筆する『下書き』。無理に文字数を埋めない。要点は深く書くが、先生が書き足す余地は残してよい（全体で{spec['recommend_total_chars']}字前後を上限の目安）。\n"

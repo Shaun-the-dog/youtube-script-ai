@@ -69,6 +69,27 @@ def load_reference() -> list[str]:
     return _read_lines(ROOT / "config" / "reference_videos.txt")
 
 
+# 直近に生成した企画タイトルを記録し、再読込・再アクセスをまたいで重複を避ける
+RECENT_IDEAS_PATH = ROOT / "output" / "recent_ideas.txt"
+
+
+def load_recent_ideas(n: int = 25) -> list[str]:
+    """直近に出した企画タイトル（新しい順で最大n件）。"""
+    lines = _read_lines(RECENT_IDEAS_PATH)
+    return lines[-n:] if lines else []
+
+
+def append_recent_ideas(titles: list[str], cap: int = 80) -> None:
+    """生成した企画タイトルを追記し、末尾cap件だけ残す。"""
+    if not titles:
+        return
+    existing = _read_lines(RECENT_IDEAS_PATH)
+    merged = existing + [t.strip() for t in titles if t and t.strip()]
+    merged = merged[-cap:]
+    RECENT_IDEAS_PATH.parent.mkdir(exist_ok=True)
+    RECENT_IDEAS_PATH.write_text("\n".join(merged) + "\n", encoding="utf-8")
+
+
 def client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
 
@@ -142,6 +163,17 @@ def compliance_block(cfg: dict) -> str:
     )
 
 
+def policy_block(cfg: dict) -> str:
+    notes = cfg.get("policy_notes", []) or []
+    if not notes:
+        return ""
+    return (
+        "\n【自事務所ポリシー（企画・台本ともに厳守。主題化も強調もしない）】\n"
+        + "\n".join(f"- {n}" for n in notes)
+        + "\n"
+    )
+
+
 def channel_context(cfg: dict) -> str:
     ch = cfg["channel"]
     aud = cfg["audience"]
@@ -154,6 +186,7 @@ def channel_context(cfg: dict) -> str:
         f"主な視聴者: {aud['primary']}\n{segs}\n"
         f"視聴者心理: {aud['mindset']}\n\n"
         + philosophy_block(cfg)
+        + policy_block(cfg)
     )
 
 
@@ -192,6 +225,9 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
         if history else "（過去テーマの記録はまだありません）"
     )
     reference = load_reference()
+    # 参照リストはランダムに一部だけ見せる。毎回同じ“鉄板ネタ”に引っ張られるのを防ぐ。
+    if len(reference) > 10:
+        reference = random.sample(reference, 10)
     reference_block = (
         "【伸びている動画タイトル（これを分析して、共通する“クリックされる型”を抽出する）】\n"
         + "\n".join(f"- {t}" for t in reference)
@@ -204,7 +240,8 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
         + "\n"
         if avoid else ""
     )
-    exclude = exclude or []
+    # セッション内の既出（exclude）に、ファイル記録の直近生成分もマージ（再読込をまたいで重複回避）
+    exclude = list(dict.fromkeys((exclude or []) + load_recent_ideas()))
     exclude_block = (
         "【すでに出した案（重要）】\n"
         "これらは提示済み。タイトルを言い換えただけの案もNG。"
@@ -275,7 +312,9 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
             continue
         seen_keys.add(key)
         uniq.append(d)
-    return uniq[:count]
+    result = uniq[:count]
+    append_recent_ideas([d.get("title", "") for d in result])  # 次回以降の重複回避に記録
+    return result
 
 
 def print_ideas(ideas: list[dict]) -> None:
@@ -359,6 +398,8 @@ def script_system(cfg: dict) -> str:
         + "- 専門用語は必ず直後にやさしく言い換える。\n"
         + "- 制度の説明だけで終わらせず、視聴者が持ち帰れる価値（具体的な行動・損得・不安の解消・判断の基準）を必ず入れる。\n"
         + "\n【深さと具体性（杉山先生の台本に近づけるための肝）】\n"
+        + "- タイトルの約束を果たす：タイトルが視聴者に約束している核心の問い・期待に、本編で正面から深く答える。タイトルは『家を守る方法』なのに本編が別制度の一般紹介、のようなズレを絶対に作らない。\n"
+        + "- 一点集中で深掘り：関連する制度を広く浅く並べる『制度カタログ』にしない。今回のタイトルの核心を1つに絞り、その1点を具体例・数字・条文・『なぜ』で厚く掘る。他の制度は核心を引き立てる範囲で最小限に触れる。\n"
         + "- なぜを必ず添える：制度・ルール・結論を述べたら、必ず『なぜそうなっているのか（立法趣旨・目的・背景）』をワンセットで説明する。事実や結論の列挙で終わらせない。\n"
         + "- 具体性：年は西暦（元号）を併記する。制度の変遷は時系列で『いつ・何が』を具体的に。条文番号・具体的な数値・固有名詞を可能な限り入れ、抽象語で流さない。\n"
         + "- 事件は物語に：テーマに関わる象徴的な事件・実例が1つあれば、物語として深掘りする（経緯→当事者の言い分→それへの反論→社会の対応→そこから得られる普遍的な教訓）。\n"
@@ -386,7 +427,7 @@ def generate_parts(cfg: dict, theme: str, use_web: bool = True) -> dict:
             "【出典（信頼性のため重要）】\n"
             "- 事実・数字・制度・期間などを述べる本編のまとまりでは、Web検索で出典を調べ、各ブロックの references に入れる。\n"
             "- 官公庁・公的機関を最優先（例：法務省、裁判所、金融庁、消費者庁、国民生活センター、日本弁護士連合会、e-Gov法令検索、官報、e-Stat など）。\n"
-            "- 可能なら各まとまりに2件以上。必要ならweb_fetchで実際のページを読んで正確に引用する。\n"
+            "- 速度優先のため、ページ全文の精読はせず、検索結果に出た実在の公的機関の資料名・URLを引用する。\n"
             "- 実在を確認したURLだけを書く。URL・資料名の捏造は絶対にしない。確証がなければ references は空配列にする。\n"
             "- 冒頭・LINE誘導・まとめ・ED には出典は不要（references は空配列）。\n"
         )
@@ -411,7 +452,7 @@ def generate_parts(cfg: dict, theme: str, use_web: bool = True) -> dict:
         messages=[{"role": "user", "content": user}],
     )
     if use_web:
-        params["tools"] = [WEB_SEARCH_TOOL, WEB_FETCH_TOOL]
+        params["tools"] = [WEB_SEARCH_TOOL]  # 速度優先：ページ精読(web_fetch)はしない
     with client().messages.stream(**params) as stream:
         for _ in stream.text_stream:
             print(".", end="", flush=True)  # 進捗表示

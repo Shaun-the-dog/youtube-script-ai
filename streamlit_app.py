@@ -198,7 +198,10 @@ if st.button("📝 この内容で台本を生成する", type="primary", disabl
             total = sum(len(r.text) for r in rows if not r.spacer)
             minutes = round(total / cfg["script_spec"]["chars_per_minute"], 1)
             ng = g.local_ng_scan(cfg, body)
-            review = g.llm_review(cfg, body)
+            try:
+                review = g.llm_review(cfg, body)
+            except Exception:  # noqa: BLE001 — レビュー失敗でも台本は必ず届ける
+                review = {"issues": [], "overall": "※自動チェックを実行できませんでした。公開前に内容を必ずご確認ください。"}
             st.session_state.result = {
                 "parts": parts, "path": str(path), "rows_text": body,
                 "total": total, "minutes": minutes, "ng": ng, "review": review,

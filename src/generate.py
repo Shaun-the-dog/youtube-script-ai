@@ -719,12 +719,16 @@ def llm_review(cfg: dict, body: str) -> dict:
         model=model_for(cfg, "review"),
         max_tokens=8000,
         system=system,
-        thinking={"type": "adaptive"},
+        thinking={"type": "disabled"},  # チェック用途。思考でトークンを使い切って空応答になるのを防ぐ
         output_config={"format": {"type": "json_schema", "schema": ISSUE_SCHEMA}},
         messages=[{"role": "user", "content": user}],
     )
     usage.record(cfg, model_for(cfg, "review"), msg.usage, "review")
-    return parse_json(first_text(msg))
+    # レビューが空・解析不能でも、台本本体は必ず届ける（チェック未実行として返す）
+    try:
+        return extract_json(msg)
+    except (ValueError, json.JSONDecodeError):
+        return {"issues": [], "overall": "※自動チェックを実行できませんでした。公開前に内容を必ずご確認ください。"}
 
 
 def run_check(cfg: dict, body: str) -> None:

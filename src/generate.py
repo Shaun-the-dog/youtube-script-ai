@@ -284,69 +284,79 @@ def ideate(cfg: dict, count: int, use_web: bool = True,
         + "\n"
         if exclude else ""
     )
-    # 多様性プールから毎回ランダムに数個を選び、「今回優先して広げる領域」として渡す
     angles = cfg.get("diversity_angles", []) or []
-    if angles:
-        picked = random.sample(angles, min(4, len(angles)))
-        angle_block = (
-            "【今回は特にこの領域から優先して発想を広げる（毎回変わる。ここに寄せて案を作る）】\n"
-            + "\n".join(f"- {a}" for a in picked)
-            + "\n"
-        )
-    else:
-        angle_block = ""
-    web_instruction = (
-        "0. まずWeb検索で、最近SNS（X等）やニュースで話題になっている借金・債務整理・お金まわりの\n"
-        "   トピック（例：「破産者マップ」など）を調べ、企画の新しい切り口として活かす。\n"
-        if use_web else ""
-    )
     system = channel_context(cfg) + "\n" + clickability_block(cfg) + "\n" + compliance_block(cfg)
-    user = (
-        f"このチャンネルの次回以降の企画案を{count + 2}本出してください（多めに出す。互いにテーマを散らす）。\n\n"
-        "手順:\n"
-        f"{web_instruction}"
-        "1. 下の『伸びている動画タイトル』を分析し、共通する“クリックされる型”を見抜く。\n"
-        "2. その型を使いつつ、過去の焼き直しではなく『新しい切り口』を加えた企画を作る。\n"
-        "   （最近の話題・世の中の動き・新しい制度や事件に接続できると強い）\n\n"
-        "条件:\n"
-        "- 先生が話したいことより、視聴者が見たい・検索することを優先する（需要ドリブン）。\n"
-        "- タイトルは具体的な不安・疑問・損得に直結させる。歴史の解説に寄せすぎない。\n"
-        "- ただし債務者を貶める煽り（「借金の末路」等）は使わない。怖がらせて終わらせず、最後は安心と次の一歩へ。\n"
-        "- 本編で視聴者が持ち帰れる価値（行動・損得・判断基準など）を必ず用意する。\n"
-        "- 過去テーマと切り口・結論が丸かぶりしないこと。各案の fresh_angle に“何が新しいか”を必ず書く。\n\n"
-        f"{avoid_block}\n"
-        f"{angle_block}\n"
-        f"{exclude_block}\n"
-        f"{reference_block}\n\n"
-        f"{history_block}\n\n"
-        f"（多様性シード:{random.randint(1000, 9999)}。このシードは毎回変わる。"
-        f"前回と同じ発想に固執せず、上の『今回優先して広げる領域』に寄せて、"
-        f"毎回できるだけ違う{count}案を出すこと。3案どうしもテーマを散らす。）"
-    )
-    params = dict(
-        model=model_for(cfg, "ideate"),
-        max_tokens=4000,
-        system=system,
-        temperature=1.0,  # 出し直すたびに案が変わるよう多様性を最大化
-        thinking={"type": "disabled"},  # 企画出しは速度優先（深い思考は不要）
-        output_config={"format": {"type": "json_schema", "schema": IDEA_SCHEMA}},
-        messages=[{"role": "user", "content": user}],
-    )
-    if use_web:
-        params["tools"] = [WEB_SEARCH_TOOL]
-    msg = client().messages.create(**params)
-    usage.record(cfg, params["model"], msg.usage, "ideate")
-    raw = extract_json(msg)["ideas"]
-    # バッチ内の重複と既出タイトルを除去し、count件に整える
+
+    def _request(n: int, web: bool) -> list[dict]:
+        """1回分の企画生成。呼ぶたびに切り口・多様性シードを変える。"""
+        web_instruction = (
+            "0. まずWeb検索で、最近SNS（X等）やニュースで話題になっている借金・債務整理・お金まわりの\n"
+            "   トピック（例：「破産者マップ」など）を調べ、企画の新しい切り口として活かす。\n"
+            if web else ""
+        )
+        angle_block = ""
+        if angles:
+            picked = random.sample(angles, min(4, len(angles)))
+            angle_block = (
+                "【今回は特にこの領域から優先して発想を広げる（毎回変わる。ここに寄せて案を作る）】\n"
+                + "\n".join(f"- {a}" for a in picked) + "\n"
+            )
+        user = (
+            f"このチャンネルの次回以降の企画案を{n}本出してください（多めに出す。互いにテーマを散らす）。\n\n"
+            "手順:\n"
+            f"{web_instruction}"
+            "1. 下の『伸びている動画タイトル』を分析し、共通する“クリックされる型”を見抜く。\n"
+            "2. その型を使いつつ、過去の焼き直しではなく『新しい切り口』を加えた企画を作る。\n"
+            "   （最近の話題・世の中の動き・新しい制度や事件に接続できると強い）\n\n"
+            "条件:\n"
+            "- 先生が話したいことより、視聴者が見たい・検索することを優先する（需要ドリブン）。\n"
+            "- タイトルは具体的な不安・疑問・損得に直結させる。歴史の解説に寄せすぎない。\n"
+            "- ただし債務者を貶める煽り（「借金の末路」等）は使わない。怖がらせて終わらせず、最後は安心と次の一歩へ。\n"
+            "- 本編で視聴者が持ち帰れる価値（行動・損得・判断基準など）を必ず用意する。\n"
+            "- 各案は必ず実在しうる具体的な企画にする。『ダミー』『サンプル』などの穴埋め案は絶対に入れない。\n"
+            "- 過去テーマと切り口・結論が丸かぶりしないこと。各案の fresh_angle に“何が新しいか”を必ず書く。\n\n"
+            f"{avoid_block}\n"
+            f"{angle_block}\n"
+            f"{exclude_block}\n"
+            f"{reference_block}\n\n"
+            f"{history_block}\n\n"
+            f"（多様性シード:{random.randint(1000, 9999)}。このシードは毎回変わる。"
+            f"前回と同じ発想に固執せず、上の『今回優先して広げる領域』に寄せて、"
+            f"毎回できるだけ違う案を出すこと。案どうしもテーマを散らす。）"
+        )
+        params = dict(
+            model=model_for(cfg, "ideate"),
+            max_tokens=8000,  # 検索＋複数案でも出力が切れないよう十分に確保
+            system=system,
+            temperature=1.0,
+            thinking={"type": "disabled"},  # 企画出しは速度優先（深い思考は不要）
+            output_config={"format": {"type": "json_schema", "schema": IDEA_SCHEMA}},
+            messages=[{"role": "user", "content": user}],
+        )
+        if web:
+            params["tools"] = [WEB_SEARCH_TOOL]
+        msg = client().messages.create(**params)
+        usage.record(cfg, params["model"], msg.usage, "ideate")
+        return extract_json(msg).get("ideas", []) or []
+
+    def _is_junk(title: str) -> bool:
+        t = (title or "").strip()
+        return len(t) < 8 or t.lower() in {
+            "ダミー", "dummy", "サンプル", "sample", "テスト", "未定", "タイトル", "例"}
+
+    # 生成→ジャンク/重複除去。count件に満たなければ1回だけ補充（2回目は速度優先で検索なし）。
     seen_keys = {t.strip().lower() for t in exclude}
-    uniq = []
-    for d in raw:
-        key = str(d.get("title", "")).strip().lower()
-        if not key or key in seen_keys:
-            continue
-        seen_keys.add(key)
-        uniq.append(d)
-    result = uniq[:count]
+    collected: list[dict] = []
+    for attempt in range(2):
+        for d in _request(count + 2, use_web and attempt == 0):
+            key = str(d.get("title", "")).strip().lower()
+            if not key or key in seen_keys or _is_junk(d.get("title", "")):
+                continue
+            seen_keys.add(key)
+            collected.append(d)
+        if len(collected) >= count:
+            break
+    result = collected[:count]
     append_recent_ideas([d.get("title", "") for d in result])  # 次回以降の重複回避に記録
     return result
 

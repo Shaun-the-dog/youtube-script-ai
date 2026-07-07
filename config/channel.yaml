@@ -27,7 +27,7 @@ models:
 # AIの消費額は概算（USD課金をJPY換算）。実際の請求は Anthropic Console で確認。
 billing:
   usd_to_jpy: 160          # 円換算レート（適宜更新）
-  monthly_budget_jpy: 2000 # 月の予算。バロメーターの満タン基準
+  monthly_budget_jpy: 5000 # 月の予算。バロメーターの満タン基準
 
 # --- 杉山先生の価値観（本編の質を左右する最重要ブロック）-----
 philosophy:

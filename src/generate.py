@@ -178,10 +178,17 @@ def clickability_block(cfg: dict) -> str:
     cl = cfg["clickability"]
     patterns = "\n".join(f"- {p}" for p in cl["patterns"])
     title_policy = cl.get("title_policy", "")
+    avoid_titles = cl.get("avoid_titles", []) or []
+    avoid = (
+        "【CTR実測で“クリックされない”ので避けるタイトル】\n"
+        + "\n".join(f"- {a}" for a in avoid_titles) + "\n"
+        if avoid_titles else ""
+    )
     return (
         "【伸びる企画の型（テーマ選び・タイトルの基準）】\n"
         f"{cl['principle']}\n"
         f"{patterns}\n"
+        + avoid
         + (f"【タイトルの約束を守る（最重要）】\n{title_policy}\n" if title_policy else "")
         + f"注意: {cl['caution']}\n"
     )
@@ -195,6 +202,21 @@ def compliance_block(cfg: dict) -> str:
         f"{principles}\n"
         f"必須の一言: {c['required_disclaimer']}\n"
     )
+
+
+def strategy_block(cfg: dict) -> str:
+    s = cfg.get("strategy", {}) or {}
+    if not s:
+        return ""
+    parts = ["\n【チャンネル戦略（最重要の背骨。すべての判断の土台）】"]
+    if s.get("goal"):
+        parts.append(s["goal"].strip())
+    if s.get("funnel"):
+        parts.append("ファネル：")
+        parts += [f"- {x}" for x in s["funnel"]]
+    if s.get("principles"):
+        parts += [f"- {x}" for x in s["principles"]]
+    return "\n".join(parts) + "\n"
 
 
 def policy_block(cfg: dict) -> str:
@@ -220,6 +242,7 @@ def channel_context(cfg: dict) -> str:
         f"主な視聴者: {aud['primary']}\n{segs}\n"
         f"視聴者心理: {aud['mindset']}\n\n"
         + philosophy_block(cfg)
+        + strategy_block(cfg)
         + policy_block(cfg)
     )
 

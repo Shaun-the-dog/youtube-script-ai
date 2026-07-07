@@ -3,6 +3,7 @@ output/*.md
 output/*.xlsx
 output/*.jsonl
 output/*.txt
+output/*.json
 __pycache__/
 *.pyc
 .venv/

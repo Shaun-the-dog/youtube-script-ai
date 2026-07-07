@@ -145,11 +145,13 @@ def philosophy_block(cfg: dict) -> str:
 def clickability_block(cfg: dict) -> str:
     cl = cfg["clickability"]
     patterns = "\n".join(f"- {p}" for p in cl["patterns"])
+    title_policy = cl.get("title_policy", "")
     return (
         "【伸びる企画の型（テーマ選び・タイトルの基準）】\n"
         f"{cl['principle']}\n"
         f"{patterns}\n"
-        f"注意: {cl['caution']}\n"
+        + (f"【タイトルの約束を守る（最重要）】\n{title_policy}\n" if title_policy else "")
+        + f"注意: {cl['caution']}\n"
     )
 
 
